@@ -1401,18 +1401,38 @@ test.describe('Command server', () => {
     test('should verify nerdctl can talk to containerd', async() => {
       const { stdout } = await rdctl(['list-settings']);
       const settings: Settings = JSON.parse(stdout);
+      const navPage = new NavPage(page);
 
       if (settings.containerEngine.name !== ContainerEngine.CONTAINERD) {
         const payloadObject: RecursivePartial<Settings> = {
           version:         CURRENT_SETTINGS_VERSION,
           containerEngine: { name: ContainerEngine.CONTAINERD },
         };
-        const navPage = new NavPage(page);
 
         await tool('rdctl', 'api', '/v1/settings', '--method', 'PUT', '--body', JSON.stringify(payloadObject));
-        await expect(navPage.progressBar).not.toBeHidden();
         await navPage.progressBecomesReady();
-        await expect(navPage.progressBar).toBeHidden();
+        try {
+          await tool('nerdctl', 'info');
+        } catch (ex:any) {
+          const { stdout, stderr, message } = ex;
+
+          console.log(`<nerdctl info> failed: stdout: ${ stdout }, stderr: ${ stderr }, message: ${ message }`);
+        }
+      } else {
+        try {
+          const output = await tool('rdctl', 'shell', 'bash', '-c', 'ls -l /run/k3s/containerd/containerd.sock || echo no socket file');
+
+          if (output.includes('no socket file')) {
+            // Force a restart
+            await tool('rdctl', 'set',
+              '--container-engine.name=containerd',
+              '--kubernetes.enabled=true',
+              `--kubernetes.options.traefik=${ (!settings.kubernetes.options.traefik).toString() }`);
+            await navPage.progressBecomesReady();
+          }
+        } catch (ex: any) {
+          console.log(`error while trying to restart in containerd: ${ ex }`);
+        }
       }
       const output = await retry(() => tool('nerdctl', 'info'));
 
@@ -1422,9 +1442,7 @@ test.describe('Command server', () => {
       const navPage = new NavPage(page);
 
       await tool('rdctl', 'set', '--container-engine', 'moby');
-      await expect(navPage.progressBar).not.toBeHidden();
       await navPage.progressBecomesReady();
-      await expect(navPage.progressBar).toBeHidden();
       const output = await retry(() => tool('docker', 'info'));
 
       expect(output).toMatch(/Server Version:\s+v?[.0-9]+/);

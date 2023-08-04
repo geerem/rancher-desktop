@@ -49,7 +49,17 @@ export class MobyClient implements ContainerEngineClient {
     }
   }
 
+  protected showTrace() {
+    try {
+      throw new Error("blip");
+    } catch(e: any) {
+      console.log(e.stack);
+    }
+  }
+
   protected async makeContainer(imageID: string): Promise<string> {
+    console.log(`QQQ: >> makeContainer`);
+    this.showTrace();
     const { stdout, stderr } = await this.runClient(['create', '--entrypoint=/', imageID], 'pipe');
     const container = stdout.trim();
 
@@ -62,6 +72,8 @@ export class MobyClient implements ContainerEngineClient {
   }
 
   async waitForReady(): Promise<void> {
+    console.log(`QQQ: >> waitForReady`);
+    this.showTrace();
     let successCount = 0;
 
     // Wait for ten consecutive successes, clearing out successCount whenever we
@@ -74,15 +86,19 @@ export class MobyClient implements ContainerEngineClient {
         await this.runClient(['system', 'info'], 'ignore');
         successCount++;
       } catch (ex) {
+        console.log(`docker system info failed: ${ ex }, count: ${ successCount }`);
         successCount = 0;
       }
       await util.promisify(setTimeout)(1_000);
     }
+    console.log(`QQQ: << waitForReady`);
   }
 
   readFile(imageID: string, filePath: string): Promise<string>;
   readFile(imageID: string, filePath: string, options: { encoding?: BufferEncoding; }): Promise<string>;
   async readFile(imageID: string, filePath: string, options?: { encoding?: BufferEncoding }): Promise<string> {
+    console.log(`QQQ: >> readFile imageID: ${ imageID }, path: ${ filePath }`);
+    this.showTrace();
     const encoding = options?.encoding ?? 'utf-8';
 
     console.debug(`Reading file ${ imageID }:${ filePath }`);
@@ -98,6 +114,7 @@ export class MobyClient implements ContainerEngineClient {
       return await fs.promises.readFile(tempFile, { encoding });
     } finally {
       await fs.promises.rm(workDir, { recursive: true });
+      console.log(`QQQ: << readFile`);
     }
   }
 
@@ -105,6 +122,8 @@ export class MobyClient implements ContainerEngineClient {
   copyFile(imageID: string, sourcePath: string, destinationPath: string, options: { silent?: true }): Promise<void>;
   async copyFile(imageID: string, sourcePath: string, destinationPath: string, options?: { silent?: boolean }): Promise<void> {
     const cleanups: (() => Promise<unknown>)[] = [];
+    console.log(`QQQ: >> copyFile imageID: ${ imageID }, path: ${ sourcePath }`);
+    this.showTrace();
 
     if (sourcePath.endsWith('/')) {
       // If we're copying a directory, add "." so we don't create an extra
@@ -116,8 +135,9 @@ export class MobyClient implements ContainerEngineClient {
     }
 
     const container = await this.makeContainer(imageID);
+    const args = this.addContextOption(['rm', container]);
 
-    cleanups.push(() => spawnFile(this.executable, ['rm', container], { stdio: console }));
+    cleanups.push(() => spawnFile(this.executable, args, { stdio: console }));
 
     try {
       if (this.vm.backend === 'wsl') {
@@ -139,11 +159,12 @@ export class MobyClient implements ContainerEngineClient {
       } else {
         await spawnFile(
           this.executable,
-          ['cp', '--follow-link', `${ container }:${ sourcePath }`, destinationPath],
+          ['--context', 'rancher-desktop', 'cp', '--follow-link', `${ container }:${ sourcePath }`, destinationPath],
           { stdio: console });
       }
     } finally {
       await this.runCleanups(cleanups);
+      console.log(`QQQ: << copyFile`);
     }
   }
 
@@ -159,6 +180,7 @@ export class MobyClient implements ContainerEngineClient {
 
     try {
       const desired = parseImageReference(imageName);
+      console.log(`QQQ: getTags: this.endpoint: ${ this.endpoint }`);
       const { stdout } = await this.runClient(
         ['image', 'list', '--format={{ .Repository }}:{{ .Tag }}'], 'pipe', options);
 
@@ -223,7 +245,7 @@ export class MobyClient implements ContainerEngineClient {
   }
 
   async composeUp(options: ContainerComposeOptions): Promise<void> {
-    const args = ['--project-directory', options.composeDir];
+    const args = this.addContextOption(['--project-directory', options.composeDir]);
 
     if (options.name) {
       args.push('--project-name', options.name);
@@ -235,23 +257,23 @@ export class MobyClient implements ContainerEngineClient {
   }
 
   async composeDown(options: ContainerComposeOptions): Promise<void> {
-    const args = [
+    const args = this.addContextOption([
       options.name ? ['--project-name', options.name] : [],
       ['--project-directory', options.composeDir, 'down'],
-    ].flat();
+    ].flat());
 
     await this.runClient(args, console, { ...options, executable: 'docker-compose' });
     console.debug('ran docker compose down');
   }
 
   composeExec(options: ContainerComposeExecOptions): Promise<ReadableProcess> {
-    const args = [
+    const args = this.addContextOption([
       options.name ? ['--project-name', options.name] : [],
       ['--project-directory', options.composeDir, 'exec'],
       options.user ? ['--user', options.user] : [],
       options.workdir ? ['--workdir', options.workdir] : [],
       [options.service, ...options.command],
-    ].flat();
+    ].flat());
 
     return Promise.resolve(spawn(executable('docker-compose'), args, {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -263,12 +285,12 @@ export class MobyClient implements ContainerEngineClient {
   }
 
   async composePort(options: ContainerComposePortOptions): Promise<string> {
-    const args = [
+    const args = this.addContextOption([
       options.name ? ['--project-name', options.name] : [],
       ['--project-directory', options.composeDir, 'port'],
       options.protocol ? ['--protocol', options.protocol] : [],
       [options.service, options.port.toString()],
-    ].flat();
+    ].flat());
     const { stdout } = await this.runClient(args, 'pipe', { ...options, executable: 'docker-compose' });
 
     return stdout.trim();
@@ -279,26 +301,52 @@ export class MobyClient implements ContainerEngineClient {
   runClient(args: string[], stdio: 'pipe', options?: runClientOptions): Promise<{ stdout: string; stderr: string; }>;
   runClient(args: string[], stdio: 'stream', options?: runClientOptions): ReadableProcess;
   runClient(args: string[], stdio?: 'ignore' | 'pipe' | 'stream' | Log, options?: runClientOptions) {
-    const binDir = path.join(paths.resources, process.platform, 'bin');
-    const executable = path.resolve(binDir, options?.executable ?? this.executable);
-    const opts = _.merge({}, options ?? {}, {
-      env: {
-        DOCKER_HOST: this.endpoint,
-        PATH:        `${ process.env.PATH }${ path.delimiter }${ binDir }`,
-      },
-    });
+    try {
+      console.log(`QQQ: >> runClient`, args);
+      this.showTrace();
+      const binDir = path.join(paths.resources, process.platform, 'bin');
+      const executable = path.resolve(binDir, options?.executable ?? this.executable);
+      const opts = _.merge({}, options ?? {}, {
+        env: {
+          DOCKER_HOST: this.endpoint,
+          PATH:        `${ process.env.PATH }${ path.delimiter }${ binDir }`,
+        },
+      });
 
-    // Due to TypeScript reasons, we have to make each branch separately.
-    switch (stdio) {
-    case 'ignore':
-    case undefined:
-      return spawnFile(executable, args, { ...opts, stdio: 'ignore' });
-    case 'stream':
-      return spawn(executable, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
-    case 'pipe':
-      return spawnFile(executable, args, { ...opts, stdio: 'pipe' });
+      if (args[0] === 'system' && args[1] === 'info') {
+        // Do nothing
+      } else if (args[0] === 'image' && args[1] === 'load' && args[args.length - 1].endsWith('rdx-proxy.tgz')) {
+        // Do nothing
+      } else {
+        this.addContextOption(args);
+      }
+      console.log(`QQQ: runClient full info: exec: ${ executable }, args: ${ args }`);
+      // Due to TypeScript reasons, we have to make each branch separately.
+      switch (stdio) {
+      case 'ignore':
+      case undefined:
+        return spawnFile(executable, args, { ...opts, stdio: 'ignore' });
+      case 'stream':
+        return spawn(executable, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
+      case 'pipe':
+        return spawnFile(executable, args, { ...opts, stdio: 'pipe' });
+      }
+
+      return spawnFile(executable, args, { ...opts, stdio });
+    } finally {
+      console.log(`QQQ: << runClient`, args);
     }
+  }
 
-    return spawnFile(executable, args, { ...opts, stdio });
+  protected addContextOption(args: string[]): string[] {
+    if (this.vm.backend === 'wsl') {
+      return args;
+    }
+    if (args.includes('--context')) {
+      return args;
+    }
+    args.unshift('--context', 'rancher-desktop');
+
+    return args;
   }
 }

@@ -1903,10 +1903,12 @@ export default class LimaBackend extends events.EventEmitter implements VMBacken
           k3sEndpoint = await this.kubeBackend.start(config, kubernetesVersion);
         }
         if (config.containerEngine.name === ContainerEngine.MOBY) {
+          console.log(`QQQ: >> dockerDirManager.ensureDockerContextConfigured, this.#adminAccess=${ this.#adminAccess }`);
           await this.dockerDirManager.ensureDockerContextConfigured(
             this.#adminAccess,
             path.join(paths.altAppHome, 'docker.sock'),
             k3sEndpoint);
+          console.log(`QQQ: << dockerDirManager.ensureDockerContextConfigured`);
         }
 
         await this.setState(config.kubernetes.enabled ? State.STARTED : State.DISABLED);

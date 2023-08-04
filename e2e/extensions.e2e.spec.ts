@@ -50,7 +50,7 @@ test.describe.serial('Extensions', () => {
       }
     }
 
-    return await spawnFile(tool, args,
+    const blip = await spawnFile(tool, args,
       {
         stdio: 'pipe',
         env:   {
@@ -58,6 +58,8 @@ test.describe.serial('Extensions', () => {
           PATH: `${ process.env.PATH }${ path.delimiter }${ getResourceBinDir() }`,
         },
       });
+    console.log(`QQQ: ${ tool } ${ args.join(' ') } => `, blip);
+    return blip;
   }
 
   test.beforeAll(async() => {
@@ -110,7 +112,7 @@ test.describe.serial('Extensions', () => {
     await retry(() => ctrctl('context', 'inspect', 'rancher-desktop'));
   });
 
-  test('wait for docker daemon to be up', async() => {
+  test('wait for docker daemon to be up with the rancher-desktop context', async() => {
     test.skip(isContainerd, 'Not running moby, no need to wait for context');
 
     // On Windows, the docker proxy can flap for a while. So we try a few times
@@ -120,12 +122,23 @@ test.describe.serial('Extensions', () => {
       await retry(() => ctrctl('system', 'info'));
       await new Promise(resolve => setTimeout(resolve, 1_000));
     }
+    let i = 0;
+    await retry(async() => {
+      const result = await ctrctl('context', 'ls');
+
+      console.log(`QQQ: docker context ls try ${ ++i } => `, result);
+      expect(result).toEqual({
+        stdout: expect.stringMatching(/rancher-desktop\s+\*\s+Rancher Desktop moby context/),
+        stderr: '',
+      });
+    }, { tries: 10 });
+    await new Promise(resolve => setTimeout(resolve, 1_000));
   });
 
   test('build and install testing extension', async() => {
     const dataDir = path.join(srcDir, 'bats', 'tests', 'extensions', 'testdata');
 
-    await ctrctl('build', '--tag', 'rd/extension/everything', '--build-arg', 'variant=everything', dataDir);
+    await ctrctl('--context', 'rancher-desktop', 'build', '--tag', 'rd/extension/everything', '--build-arg', 'variant=everything', dataDir);
     await spawnFile(rdctl, ['api', '-XPOST', '/v1/extensions/install?id=rd/extension/everything']);
   });
 

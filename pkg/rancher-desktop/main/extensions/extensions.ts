@@ -222,7 +222,7 @@ export class ExtensionImpl implements Extension {
     const metadata = await this.metadata;
 
     ExtensionImpl.checkInstallAllowed(allowedImages, this.image);
-    console.debug(`Image ${ this.image } is allowed to install: ${ allowedImages }`);
+    console.log(`Image ${ this.image } is allowed to install: ${ allowedImages }`);
 
     await fs.promises.mkdir(this.dir, { recursive: true });
     try {

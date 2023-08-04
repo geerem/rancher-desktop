@@ -22,6 +22,7 @@ import fetch, { RequestInit } from '@pkg/utils/fetch';
 import Logging from '@pkg/utils/logging';
 import paths from '@pkg/utils/paths';
 import { RecursiveReadonly } from '@pkg/utils/typeUtils';
+import { spawnFile } from '@pkg/utils/childProcess';
 
 const console = Logging.extensions;
 const ipcMain = getIpcMainProxy(console);
@@ -343,11 +344,14 @@ export class ExtensionManagerImpl implements ExtensionManager {
    * extension image.
    */
   protected async findBestVersion(imageName: string): Promise<string> {
+    console.log(`QQQ: >> findBestVersion for imageName ${ imageName }`);
+    const { stdout } = await spawnFile('docker', ['context', 'ls'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    console.log(`QQQ: docker context ls => ${ stdout }`);
     const tags = await this.client.getTags(
       imageName, { namespace: ExtensionImpl.extensionNamespace });
     const tagArray = Array.from(tags);
 
-    console.debug(`Got tags: ${ JSON.stringify(tagArray) }`);
+    console.log(`Got tags: ${ JSON.stringify(tagArray) }`);
 
     // Select the highest semver tag, if available.
     // We try a couple ways to determine semver in the tag.

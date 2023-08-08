@@ -72,17 +72,20 @@ running_nginx() {
     refute_output --regexp 'default.*nginx.*Running'
 }
 
-@test 'shutdown and restore' {
+# This should be one long test because if `snapshot restore` fails there's no point starting up
+@test 'shutdown, restore, restart and verify snapshot state' {
+    local snapshotID
     rdctl shutdown
     run get_snapshot_id_from_name "$SNAPSHOT"
     assert_success
-    test -n "$output"
-    rdctl snapshot restore "$output"
-}
+    refute_output ""
+    snapshotID="$output"
+    run rdctl snapshot restore "$snapshotID"
+    assert_success
+    refute_output --partial $"failed to restore snapshot \"$snapshotID\""
 
-@test 'restart and verify snapshot state' {
     # Circumvent having start_kubernetes => start_container_engine set all the defaults
-
+    # by running `yarn dev` or `rdctl start` directly here.
     if using_dev_mode; then
         # translate args back into the internal API format
         yarn dev --no-modal-dialogs

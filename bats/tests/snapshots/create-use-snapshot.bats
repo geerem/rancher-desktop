@@ -12,7 +12,9 @@ local_setup() {
 
 @test 'factory reset and delete the snapshot if it exists' {
     factory_reset
-    rdctl snapshot delete "$SNAPSHOT" || true
+    run get_snapshot_id_from_name "$SNAPSHOT"
+    assert_success
+    test -n "$output" && rdctl snapshot delete "$output"
 }
 
 @test 'start up in moby' {
@@ -68,6 +70,7 @@ running_nginx() {
     rdctl shutdown
     run get_snapshot_id_from_name "$SNAPSHOT"
     assert_success
+    test -n "$output"
     rdctl snapshot restore "$output"
 }
 

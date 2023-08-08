@@ -14,7 +14,13 @@ local_setup() {
     factory_reset
     run get_snapshot_id_from_name "$SNAPSHOT"
     assert_success
-    test -n "$output" && rdctl snapshot delete "$output"
+    echo "output is [$output]" 1>&3
+    if [[ -n $output ]]; then
+        echo "Go delete snapshot <$output>" 1>&3
+        rdctl snapshot delete "$output"
+    else
+        echo "No snapshot found to delete" 1>&3
+    fi
 }
 
 @test 'start up in moby' {

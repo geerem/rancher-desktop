@@ -30,9 +30,9 @@ func (snapshots SortableSnapshots) Swap(i, j int) {
 }
 
 var snapshotListCmd = &cobra.Command{
-	Use:     "list",
+	Use:   "list",
+	Short: "List snapshots",
 	Aliases: []string{"ls"},
-	Short:   "List snapshots",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return listSnapshot(cmd, args)
 	},

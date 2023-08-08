@@ -10,8 +10,9 @@ local_setup() {
     fi
 }
 
-@test 'factory reset' {
+@test 'factory reset and delete the snapshot if it exists' {
     factory_reset
+    rdctl snapshot delete "$SNAPSHOT" || true
 }
 
 @test 'start up in moby' {
@@ -23,6 +24,7 @@ local_setup() {
 
 start_nginx() {
     run kubectl get pods
+    assert_success
     assert_output --regexp 'nginx.*Running'
 }
 
@@ -42,6 +44,7 @@ running_nginx() {
     rdctl shutdown
     rdctl snapshot create "$SNAPSHOT"
     run rdctl snapshot list
+    assert_success
     assert_output --partial "$SNAPSHOT"
     rdctl factory-reset
 }

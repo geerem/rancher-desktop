@@ -338,6 +338,7 @@ export async function startRancherDesktop(testPath: string, options?: startRanch
     // See pkg/rancher-desktop/utils/commandLine.ts before changing the next item as the final option.
     '--disable-dev-shm-usage',
   ];
+
   if (options?.noModalDialogs ?? false) {
     args.push('--no-modal-dialogs');
   }

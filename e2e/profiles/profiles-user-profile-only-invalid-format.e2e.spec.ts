@@ -64,7 +64,7 @@ test.describe.serial('KubernetesBackend', () => {
       break;
     case 'linux':
       await createInvalidLinuxUserProfile(`{"kubernetes":{"version":["str`);
-      errorMatcher = new RegExp(`Error in ${ path.join(paths.deploymentProfileUser, 'rancher-desktop.defaults.json') }.*Unfinished string at EOF`);
+      errorMatcher = new RegExp(`Error starting up: DeploymentProfileError: Error parsing deployment profile from ${ path.join(paths.deploymentProfileUser, 'rancher-desktop.defaults.json') }: SyntaxError: Unterminated string in JSON`);
       break;
     case 'win32':
       skipReasons.push(`This test doesn't make sense on Windows yet`);

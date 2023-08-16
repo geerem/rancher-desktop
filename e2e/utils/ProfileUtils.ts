@@ -71,7 +71,15 @@ function getDeploymentBaseNames(platform: 'linux'|'darwin'): string[] {
 }
 
 function getDeploymentPaths(platform: 'linux'|'darwin', profileDir: string): string[] {
-  return getDeploymentBaseNames(platform).map(basename => path.join(profileDir, basename));
+  let baseNames = getDeploymentBaseNames(platform);
+
+  if (platform === 'linux' && profileDir === paths.deploymentProfileUser) {
+    // macOS profile base-names are the same in both directories
+    // linux ones change...
+    baseNames = baseNames.map(s => s.replace('rancher-desktop.', ''));
+  }
+
+  return baseNames.map(baseName => path.join(profileDir, baseName));
 }
 
 export async function hasRegistryHive(hive: string): Promise<boolean> {

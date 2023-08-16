@@ -26,6 +26,21 @@ import { createUserProfile } from '../utils/TestUtils';
 
 import { Settings } from '@pkg/config/settings';
 import { RecursivePartial } from '@pkg/utils/typeUtils';
+import * as childProcess from '~/utils/childProcess';
+
+async function createNonexistentDataUserRegistryProfile() {
+  const base = 'HKCU\\SOFTWARE\\Rancher Desktop\\Profile\\Defaults\\fruits';
+
+  await childProcess.spawnFile('reg',
+    ['add', `${ base }`, '/v', 'oranges', '/f', '/t', 'REG_DWORD', '/d', '5'],
+    { stdio: ['ignore', 'pipe', 'pipe'] });
+  await childProcess.spawnFile('reg',
+    ['add', `${ base }`, '/v', 'mangoes', '/f', '/t', 'REG_DWORD', '/d', '1'],
+    { stdio: ['ignore', 'pipe', 'pipe'] });
+  await childProcess.spawnFile('reg',
+    ['add', `${ base }`, '/v', 'citrus', '/f', '/t', 'REG_SZ', '/d', 'lemons'],
+    { stdio: ['ignore', 'pipe', 'pipe'] });
+}
 
 test.describe.serial('sys-profile with settings', () => {
   let skipReasons: string[];
@@ -35,13 +50,19 @@ test.describe.serial('sys-profile with settings', () => {
     skipReasons = (await clearSettings());
     skipReasons.push(...(await clearUserProfile()));
     skipReasons.push(...(await verifyNoSystemProfile()));
+    if (process.platform === 'win32') {
+      skipReasons.push(`This test won't work on Windows because the json->reg converter ignores non-settings`);
+    }
     if (skipReasons.length > 0) {
       skipReason = `Profile requirements for this test: ${ skipReasons.join(', ') }`;
       console.log(`Skipping this test: ${ skipReason }`);
     }
-    // Circumvent the type-checker by json-parsing a string of non-settings
-    const s = `{ "fruits": ["oranges", "mangoes", { "citrus": ["lemons"] } ] }`;
-    const s1 = JSON.parse(s);
+    if (process.platform === 'win32') {
+      await createNonexistentDataUserRegistryProfile();
+    } else {
+      // Circumvent the type-checker by json-parsing a string of non-settings
+      const s = `{ "fruits": {"oranges": 5, "mangoes": true, "citrus": "lemons" } }`;
+      const s1 = JSON.parse(s);
 
     await createUserProfile(s1 as RecursivePartial<Settings>, null);
   });

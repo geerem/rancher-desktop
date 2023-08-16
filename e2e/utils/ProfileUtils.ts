@@ -84,15 +84,17 @@ function getDeploymentPaths(platform: 'linux'|'darwin', profileDir: string): str
 
 export async function hasRegistryHive(hive: string): Promise<boolean> {
   for (const profileType of ['defaults', 'locked']) {
-    try {
-      const { stdout } = await childProcess.spawnFile('reg',
-        ['query', `${ hive }\\SOFTWARE\\Policies\\Rancher Desktop\\${ profileType }`],
-        { stdio: ['ignore', 'pipe', 'pipe'] });
+    for (const variant of ['Policies\\Rancher Desktop', 'Rancher Desktop\\Profile']) {
+      try {
+        const { stdout } = await childProcess.spawnFile('reg',
+          ['query', `${ hive }\\SOFTWARE\\${ variant }\\${ profileType }`],
+          { stdio: ['ignore', 'pipe', 'pipe'] });
 
-      if (stdout.length > 0) {
-        return true;
-      }
-    } catch { }
+        if (stdout.length > 0) {
+          return true;
+        }
+      } catch { }
+    }
   }
 
   return false;
@@ -117,22 +119,18 @@ export async function hasUserProfile(): Promise<boolean> {
 }
 
 export async function verifyRegistryHive(hive: string): Promise<string[]> {
-  let hasProfile = false;
-
-  for (const profileType of ['defaults', 'locked']) {
-    try {
-      const { stdout } = await childProcess.spawnFile('reg',
-        ['query', `${ hive }\\SOFTWARE\\Policies\\Rancher Desktop\\${ profileType }`],
-        { stdio: ['ignore', 'pipe', 'pipe'] });
-
-      if (stdout.length > 0) {
-        hasProfile = true;
-        break;
-      }
-    } catch { }
+  if (await hasRegistryHive(hive)) {
+    return [];
+  } else if (hive === 'HKLM') {
+    return [`Need to add registry hive "${ hive }\\SOFTWARE\\Policies\\Rancher Desktop\\<defaults or locked>"`];
   }
+  try {
+    await createUserProfile({ kubernetes: { enabled: false } }, null);
 
-  return hasProfile ? [] : [`Need to add registry hive "${ hive }\\SOFTWARE\\Policies\\Rancher Desktop\\<defaults or locked>"`];
+    return [];
+  } catch (ex: any) {
+    return [`Tried to create a user registry hive, got error ${ ex }`];
+  }
 }
 
 export async function verifySettings(): Promise<string[]> {
@@ -151,16 +149,28 @@ export async function verifyNoRegistryHive(hive: string): Promise<string[]> {
   const skipReasons: string[] = [];
 
   for (const profileType of ['defaults', 'locked']) {
-    try {
-      const { stdout } = await childProcess.spawnFile('reg',
-        ['query', `${ hive }\\SOFTWARE\\Policies\\Rancher Desktop\\${ profileType }`],
-        { stdio: ['ignore', 'pipe', 'pipe'] });
+    for (const variant of ['Policies\\Rancher Desktop', 'Rancher Desktop\\Profile']) {
+      const registryPath = `${ hive }\\SOFTWARE\\${ variant }\\${ profileType }`;
 
-      if (stdout.length === 0) {
-        continue;
-      }
-    } catch { }
-    skipReasons.push(`Need to remove registry hive "${ hive }\\SOFTWARE\\Policies\\Rancher Desktop\\${ profileType }"`);
+      try {
+        const { stdout } = await childProcess.spawnFile('reg',
+          ['query', registryPath],
+          { stdio: ['ignore', 'pipe', 'pipe'] });
+
+        if (stdout.length === 0) {
+          continue;
+        }
+        if (hive === 'HKCU' && variant === 'Rancher Desktop\\Profile') {
+          try {
+            await childProcess.spawnFile('reg', ['delete', registryPath, '/va', '/f'], { stdio: ['ignore', 'pipe', 'pipe'] });
+          } catch (ex: any) {
+            skipReasons.push(`Need to remove registry hive "${ registryPath }" (tried, got error ${ ex }`);
+          }
+        } else {
+          skipReasons.push(`Need to remove registry hive "${ registryPath }"`);
+        }
+      } catch { }
+    }
   }
 
   return skipReasons;

@@ -23,11 +23,20 @@ import { clearSettings, clearUserProfile, runWaitForLogfile, verifyNoSystemProfi
 import { createUserProfile, reportAsset } from '../utils/TestUtils';
 
 import { Settings } from '@pkg/config/settings';
+import * as childProcess from '@pkg/utils/childProcess';
 import paths from '@pkg/utils/paths';
 import { RecursivePartial } from '@pkg/utils/typeUtils';
 
 const logDir = reportAsset(__filename, 'log');
 const logPath = path.join(logDir, 'background.log');
+
+async function createWrongDataUserRegistryProfile() {
+  const base = 'HKCU\\SOFTWARE\\Rancher Desktop\\Profile\\Defaults\\kubernetes';
+
+  await childProcess.spawnFile('reg',
+    ['add', `${ base }`, '/v', 'version', '/f', '/t', 'REG_MULTI_SZ', '/d', 'strawberries\\0limes'],
+    { stdio: ['ignore', 'pipe', 'pipe'] });
+}
 
 test.describe.serial('KubernetesBackend', () => {
   let skipReasons: string[];
@@ -38,18 +47,19 @@ test.describe.serial('KubernetesBackend', () => {
     skipReasons = (await clearSettings());
     skipReasons.push(...(await clearUserProfile()));
     skipReasons.push(...(await verifyNoSystemProfile()));
-    if (process.platform === 'win32') {
-      skipReasons.push('Not running on Windows yet');
-    }
     if (skipReasons.length > 0) {
       skipReason = `Profile requirements for this test: ${ skipReasons.join(', ') }`;
       console.log(`Skipping this test: ${ skipReason }`);
     }
-    // Use JSON.parse to bypass the typescript type-checker
-    const s = `{"kubernetes":{"version":["strawberries","limes"]}}`;
-    const s1 = JSON.parse(s) as RecursivePartial<Settings>;
+    if (process.platform === 'win32') {
+      await createWrongDataUserRegistryProfile();
+    } else {
+      // Use JSON.parse to bypass the typescript type-checker
+      const s = `{"kubernetes":{"version":["strawberries","limes"]}}`;
+      const s1 = JSON.parse(s) as RecursivePartial<Settings>;
 
-    await createUserProfile(s1, null);
+      await createUserProfile(s1, null);
+    }
   });
 
   test('should see logs complaining about wrong type', async() => {
@@ -59,7 +69,13 @@ test.describe.serial('KubernetesBackend', () => {
 
     expect(windowCount).toEqual(0);
     expect(contents).toContain('Fatal Error:');
-    expect(contents).toMatch(new RegExp(`Error in deployment file.*${ paths.deploymentProfileUser }.*defaults`));
-    expect(contents).toContain(`Error for field 'kubernetes.version': expecting value of type string, got an array ["strawberries","limes"]`);
+    if (process.platform === 'win32') {
+      expect(contents).toContain(`Error for field 'HKCU\\SOFTWARE\\Rancher Desktop\\Profile\\Defaults\\kubernetes\\version'`);
+      expect(contents).toContain(`expecting value of type string, got an array '["strawberries","limes"]'`);
+    } else {
+      expect(contents).toMatch(new RegExp(`Error in deployment file.*${ paths.deploymentProfileUser }.*defaults`));
+      expect(contents).toContain(`Error for field 'kubernetes.version':`);
+      expect(contents).toContain(`expecting value of type string, got an array ["strawberries","limes"]`);
+    }
   });
 });

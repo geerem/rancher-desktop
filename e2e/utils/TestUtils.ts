@@ -50,7 +50,8 @@ async function createLinuxUserProfile(userProfile: RecursivePartial<Settings>|nu
 }
 
 function convertToRegistryLegacy(s: string) {
-  return s.replace(/Policies\\Rancher Desktop/g, 'Rancher Desktop\\Profile');
+  return s.replace(/Policies\\Rancher Desktop/g, 'Rancher Desktop\\Profile')
+    .replace('SOFTWARE\\Policies]', 'SOFTWARE\\Rancher Desktop]');
 }
 
 async function createWindowsUserLegacyProfile(userProfile: RecursivePartial<Settings>|null, lockedFields:LockedSettingsType|null) {

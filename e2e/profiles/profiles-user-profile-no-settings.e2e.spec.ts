@@ -39,6 +39,6 @@ test.describe.serial('KubernetesBackend', () => {
 
   test('should start with the main window', async() => {
     test.skip(skipReason !== '', skipReason);
-    await testForNoFirstRunWindow();
+    await testForNoFirstRunWindow(__filename);
   });
 });

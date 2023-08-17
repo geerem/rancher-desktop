@@ -78,6 +78,14 @@ test.describe.serial('KubernetesBackend', () => {
     }
   });
 
+  test.afterAll(async() => {
+    // The invalid user-profiles can interfere with subsequent tests.
+    await clearSettings();
+    if (process.platform !== 'win32') {
+      await clearUserProfile();
+    }
+  });
+
   test('should see logs complaining about invalid profile structure', async() => {
     test.skip(skipReason !== '', skipReason);
     const windowCount = await runWaitForLogfile(__filename, logPath);

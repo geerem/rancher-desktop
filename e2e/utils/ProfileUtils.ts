@@ -7,7 +7,9 @@ import util from 'util';
 
 import { expect, Page } from '@playwright/test';
 
-import { createDefaultSettings, createUserProfile, startRancherDesktop, tool } from './TestUtils';
+import {
+  createDefaultSettings, createUserProfile, startRancherDesktop, retry, tool,
+} from './TestUtils';
 import { NavPage } from '../pages/nav-page';
 
 import * as childProcess from '@pkg/utils/childProcess';
@@ -73,7 +75,7 @@ function getDeploymentBaseNames(platform: 'linux'|'darwin'): string[] {
 function getDeploymentPaths(platform: 'linux'|'darwin', profileDir: string): string[] {
   let baseNames = getDeploymentBaseNames(platform);
 
-  if (platform === 'linux' && profileDir === paths.deploymentProfileUser) {
+  if (platform === 'linux' && profileDir === paths.deploymentProfileSystem) {
     // macOS profile base-names are the same in both directories
     // linux ones change...
     baseNames = baseNames.map(s => s.replace('rancher-desktop.', ''));
@@ -148,53 +150,39 @@ export async function verifySettings(): Promise<string[]> {
 export async function verifyNoRegistryHive(hive: string): Promise<string[]> {
   const skipReasons: string[] = [];
 
-  for (const profileType of ['defaults', 'locked']) {
-    for (const variant of ['Policies\\Rancher Desktop', 'Rancher Desktop\\Profile']) {
-      const registryPath = `${ hive }\\SOFTWARE\\${ variant }\\${ profileType }`;
+  for (const variant of ['Policies\\Rancher Desktop', 'Rancher Desktop\\Profile']) {
+    const registryPath = `${ hive }\\SOFTWARE\\${ variant }`;
 
-      try {
-        const { stdout } = await childProcess.spawnFile('reg',
-          ['query', registryPath],
-          { stdio: ['ignore', 'pipe', 'pipe'] });
+    try {
+      const { stdout } = await childProcess.spawnFile('reg',
+        ['query', registryPath],
+        { stdio: ['ignore', 'pipe', 'pipe'] });
 
-        if (stdout.length === 0) {
-          continue;
+      if (stdout.length === 0) {
+        continue;
+      }
+      if (hive === 'HKCU' && variant === 'Rancher Desktop\\Profile') {
+        try {
+          await childProcess.spawnFile('reg', ['delete', registryPath, '/f'], { stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch (ex: any) {
+          skipReasons.push(`Need to remove registry hive "${ registryPath }" (tried, got error ${ ex }`);
         }
-        if (hive === 'HKCU' && variant === 'Rancher Desktop\\Profile') {
-          try {
-            await childProcess.spawnFile('reg', ['delete', registryPath, '/va', '/f'], { stdio: ['ignore', 'pipe', 'pipe'] });
-          } catch (ex: any) {
-            skipReasons.push(`Need to remove registry hive "${ registryPath }" (tried, got error ${ ex }`);
-          }
-        } else {
-          skipReasons.push(`Need to remove registry hive "${ registryPath }"`);
-        }
-      } catch { }
-    }
+      } else {
+        skipReasons.push(`Need to remove registry hive "${ registryPath }"`);
+      }
+    } catch { }
   }
 
   return skipReasons;
 }
 
 export async function verifyUserProfile(): Promise<string[]> {
-  const platform = os.platform() as 'win32' | 'darwin' | 'linux';
-  // console.log('check settings');
-  // await util.promisify(setTimeout)(2 * 60_000);
+  const skipReasons = await clearUserProfile();
 
-  if (platform === 'win32') {
-    return verifyRegistryHive('HKCU');
+  if (skipReasons.length > 0) {
+    return skipReasons;
   }
-  for (const profilePath of getDeploymentPaths(platform, paths.deploymentProfileUser)) {
-    try {
-      await fs.promises.access(profilePath);
-
-      return [];
-    } catch { }
-  }
-  await createUserProfile(
-    { containerEngine: { allowedImages: { enabled: true } } },
-    { containerEngine: { allowedImages: { enabled: true, patterns: [__filename] } }, kubernetes: { version: 'chaff' } },
-  );
+  await createUserProfile({ containerEngine: { allowedImages: { enabled: true } } }, null);
 
   return [];
 }
@@ -219,8 +207,6 @@ export async function verifyNoSystemProfile(): Promise<string[]> {
 
 export async function verifySystemProfile(): Promise<string[]> {
   const platform = os.platform() as 'win32' | 'darwin' | 'linux';
-  // console.log('check settings');
-  // await util.promisify(setTimeout)(2 * 60_000);
 
   if (platform === 'win32') {
     return await verifyRegistryHive('HKLM');
@@ -242,32 +228,32 @@ export async function verifySystemProfile(): Promise<string[]> {
 // 2. Verify the main window is the first window
 // 3. Verify we get a fatal error and it's captured in a log file.
 
-export async function testForFirstRunWindow() {
+export async function testForFirstRunWindow(testPath: string) {
   let page: Page|undefined;
   let navPage: NavPage;
   let windowCount = 0;
   let windowCountForMainPage = 0;
-  const electronApp = await startRancherDesktop(__filename, { mock: false, noModalDialogs: false });
+  const electronApp = await startRancherDesktop(testPath, { mock: false, noModalDialogs: false });
 
   electronApp.on('window', async(openedPage: Page) => {
     windowCount += 1;
     if (windowCount === 1) {
-      try {
+      await retry(async() => {
         const button = openedPage.getByText('OK');
 
         if (button) {
           await button.click({ timeout: 10_000 });
         }
+      }, { delay: 100, tries: 50 });
 
-        return;
-      } catch (e: any) {
-        console.log(`Attempt to press the OK button failed: ${ e }`);
-      }
+      return;
     }
     navPage = new NavPage(openedPage);
 
     try {
-      await expect(navPage.mainTitle).toHaveText('Welcome to Rancher Desktop');
+      await retry(async() => {
+        await expect(navPage.mainTitle).toHaveText('Welcome to Rancher Desktop');
+      });
       page = openedPage;
       windowCountForMainPage = windowCount;
 
@@ -299,19 +285,21 @@ export async function testForFirstRunWindow() {
   await tool('rdctl', 'shutdown', '--verbose');
 }
 
-export async function testForNoFirstRunWindow() {
+export async function testForNoFirstRunWindow(testPath: string) {
   let page: Page|undefined;
   let navPage: NavPage;
   let windowCount = 0;
   let windowCountForMainPage = 0;
-  const electronApp = await startRancherDesktop(__filename, { mock: false, noModalDialogs: false });
+  const electronApp = await startRancherDesktop(testPath, { mock: false, noModalDialogs: false });
 
   electronApp.on('window', async(openedPage: Page) => {
     windowCount += 1;
     navPage = new NavPage(openedPage);
 
     try {
-      await expect(navPage.mainTitle).toHaveText('Welcome to Rancher Desktop');
+      await retry(async() => {
+        await expect(navPage.mainTitle).toHaveText('Welcome to Rancher Desktop');
+      });
       page = openedPage;
       windowCountForMainPage = windowCount;
 
@@ -380,6 +368,9 @@ export async function runWaitForLogfile(testPath: string, logPath: string) {
     } catch {}
     if (now > limit) {
       throw new Error(`timed out waiting for ${ limit / 1000 } seconds`);
+    }
+    if (windowCount > 0) {
+      break;
     }
     await util.promisify(setTimeout)(100);
   }

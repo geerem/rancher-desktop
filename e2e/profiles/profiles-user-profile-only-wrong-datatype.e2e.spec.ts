@@ -62,6 +62,12 @@ test.describe.serial('KubernetesBackend', () => {
     }
   });
 
+  test.afterAll(async() => {
+    // The invalid user-profiles can interfere with subsequent tests.
+    await clearSettings();
+    await clearUserProfile();
+  });
+
   test('should see logs complaining about wrong type', async() => {
     test.skip(skipReason !== '', skipReason);
     const windowCount = await runWaitForLogfile(__filename, logPath);

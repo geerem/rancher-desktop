@@ -64,11 +64,18 @@ test.describe.serial('sys-profile with settings', () => {
       const s = `{ "fruits": {"oranges": 5, "mangoes": true, "citrus": "lemons" } }`;
       const s1 = JSON.parse(s);
 
-    await createUserProfile(s1 as RecursivePartial<Settings>, null);
+      await createUserProfile(s1 as RecursivePartial<Settings>, null);
+    }
+  });
+
+  test.afterAll(async() => {
+    // The invalid user-profiles can interfere with subsequent tests.
+    await clearSettings();
+    await clearUserProfile();
   });
 
   test('should start with the first-run window', async() => {
     test.skip(skipReason !== '', skipReason);
-    await testForFirstRunWindow();
+    await testForFirstRunWindow(__filename);
   });
 });

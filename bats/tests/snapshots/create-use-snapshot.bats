@@ -99,7 +99,7 @@ running_nginx() {
     wait_for_apiserver
     run rdctl api /settings
     assert_success
-    run jq_output
+    run jq_output .
     assert_success
     assert_output --partial moby
     run kubectl get pods -A

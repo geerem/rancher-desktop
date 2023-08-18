@@ -102,6 +102,7 @@ running_nginx() {
     run jq_output
     assert_success
     assert_output --partial moby
-    kubectl get pods -A
+    run kubectl get pods -A
+    assert_success
     assert_output --regexp 'default.*nginx.*Running'
 }

@@ -1,10 +1,11 @@
 load '../helpers/load'
 
-@test 'snapshot shows up in general help' {
-    run rdctl --help
-    assert_success
-    assert_output -partial snapshot
-}
+# TODO: Uncomment this test when snapshots go unhidden.
+#@test 'snapshot shows up in general help' {
+#    run rdctl --help
+#    assert_success
+#    assert_output -partial snapshot
+#}
 
 @test 'disallows spaces in snapshot names' {
     run rdctl snapshot create "space not allowed in snapshot name"
@@ -28,7 +29,7 @@ load '../helpers/load'
     for c in '!' '$' '^' '&' '*' '(' ')' '[' ']' '{' '}' ';' ':' '?' '/' "'" '"' '`'; do
         run rdctl snapshot create "bad-char-${c}"
         assert_failure
-        assert_output --partial "$c"
+        assert_output --partial 'failed to create snapshot: name does not match regex'
     done
 }
 
@@ -49,7 +50,7 @@ load '../helpers/load'
 @test 'complain about restoring nonexistent snapshot' {
     run rdctl snapshot restore 'not a snapshot'
     assert_failure
-    assert_output --partial 'snapshot with id "not a snapshot" does not exist'
+    assert_output --partial 'failed to read metadata for snapshot "not a snapshot'
 }
 
 @test 'complain about deleting nonexistent snapshot' {

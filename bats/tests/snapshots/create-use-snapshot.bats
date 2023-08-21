@@ -87,8 +87,7 @@ running_nginx() {
     # Circumvent having start_kubernetes => start_container_engine set all the defaults
     # by running `yarn dev` or `rdctl start` directly here.
     if using_dev_mode; then
-        # translate args back into the internal API format
-        yarn dev --no-modal-dialogs
+        yarn dev --no-modal-dialogs &
     else
         RD_TEST=bats rdctl start --no-modal-dialogs &
     fi

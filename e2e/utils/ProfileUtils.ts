@@ -92,11 +92,9 @@ export async function hasUserProfile(): Promise<boolean> {
   }
 
   for (const profilePath of getDeploymentPaths(platform, paths.deploymentProfileUser)) {
-    try {
-      await fs.promises.access(profilePath);
-
+    if (await fileExists(profilePath)) {
       return true;
-    } catch { }
+    }
   }
 
   return false;
@@ -117,9 +115,7 @@ export async function verifyRegistrySubtree(hive: string): Promise<string[]> {
 export async function verifySettings(): Promise<void> {
   const fullPath = path.join(paths.config, 'settings.json');
 
-  try {
-    await fs.promises.access(fullPath);
-  } catch {
+  if (!fileExists(fullPath)) {
     createDefaultSettings();
   }
 }

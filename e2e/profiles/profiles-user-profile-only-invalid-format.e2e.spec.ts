@@ -46,9 +46,9 @@ test.describe.serial('KubernetesBackend', () => {
 
   test.beforeAll(async() => {
     await fs.promises.rm(logPath, { force: true });
-    skipReasons = (await clearSettings());
-    skipReasons.push(...(await clearUserProfile()));
-    skipReasons.push(...(await verifyNoSystemProfile()));
+    await clearSettings();
+    await clearUserProfile();
+    skipReasons = await verifyNoSystemProfile();
     switch (process.platform) {
     case 'darwin':
       await createInvalidDarwinUserProfile(`<?xml version="1.0" encoding="UTF-8"?>

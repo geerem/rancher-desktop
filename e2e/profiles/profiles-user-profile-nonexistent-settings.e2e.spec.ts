@@ -47,9 +47,9 @@ test.describe.serial('sys-profile with settings', () => {
   let skipReason = '';
 
   test.beforeAll(async() => {
-    skipReasons = (await clearSettings());
-    skipReasons.push(...(await clearUserProfile()));
-    skipReasons.push(...(await verifyNoSystemProfile()));
+    await clearSettings();
+    await clearUserProfile();
+    skipReasons = await verifyNoSystemProfile();
     if (process.platform === 'win32') {
       skipReasons.push(`This test won't work on Windows because the json->reg converter ignores non-settings`);
     }

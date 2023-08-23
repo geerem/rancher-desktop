@@ -44,9 +44,9 @@ test.describe.serial('KubernetesBackend', () => {
 
   test.beforeAll(async() => {
     await fs.promises.rm(logPath, { force: true });
-    skipReasons = (await clearSettings());
-    skipReasons.push(...(await clearUserProfile()));
-    skipReasons.push(...(await verifyNoSystemProfile()));
+    await clearSettings();
+    await clearUserProfile();
+    skipReasons = await verifyNoSystemProfile();
     if (skipReasons.length > 0) {
       skipReason = `Profile requirements for this test: ${ skipReasons.join(', ') }`;
       console.log(`Skipping this test: ${ skipReason }`);

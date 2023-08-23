@@ -15,26 +15,14 @@ import { NavPage } from '../pages/nav-page';
 import * as childProcess from '@pkg/utils/childProcess';
 import paths from '@pkg/utils/paths';
 
-export async function clearSettings(): Promise<string[]> {
+export async function clearSettings(): Promise<void> {
   const fullPath = path.join(paths.config, 'settings.json');
 
-  try {
-    await fs.promises.access(fullPath);
-    try {
-      await fs.promises.rm(fullPath, { force: true });
-
-      return [];
-    } catch (ex: any) {
-      return [`Failed to delete ${ fullPath } : ${ ex }`];
-    }
-  } catch {
-    return [];
-  }
+  await fs.promises.rm(fullPath, { force: true });
 }
 
-export async function clearUserProfile(): Promise<string[]> {
+export async function clearUserProfile(): Promise<void> {
   const platform = os.platform() as 'win32' | 'darwin' | 'linux';
-  const skipReasons: string[] = [];
 
   if (platform === 'win32') {
     return await verifyNoRegistryHive('HKCU');
@@ -42,14 +30,8 @@ export async function clearUserProfile(): Promise<string[]> {
   const profilePaths = getDeploymentPaths(platform, paths.deploymentProfileUser);
 
   for (const fullPath of profilePaths) {
-    try {
-      await fs.promises.rm(fullPath, { force: true });
-    } catch (ex: any) {
-      skipReasons.push(`Failed to delete file ${ fullPath }: ${ ex }`);
-    }
+    await fs.promises.rm(fullPath, { force: true });
   }
-
-  return skipReasons;
 }
 
 async function fileExists(fullPath: string): Promise<boolean> {
@@ -125,17 +107,14 @@ export async function verifyRegistryHive(hive: string): Promise<string[]> {
     return [];
   } else if (hive === 'HKLM') {
     return [`Need to add registry hive "${ hive }\\SOFTWARE\\Policies\\Rancher Desktop\\<defaults or locked>"`];
-  }
-  try {
+  } else {
     await createUserProfile({ kubernetes: { enabled: false } }, null);
 
     return [];
-  } catch (ex: any) {
-    return [`Tried to create a user registry hive, got error ${ ex }`];
   }
 }
 
-export async function verifySettings(): Promise<string[]> {
+export async function verifySettings(): Promise<void> {
   const fullPath = path.join(paths.config, 'settings.json');
 
   try {
@@ -143,13 +122,9 @@ export async function verifySettings(): Promise<string[]> {
   } catch {
     createDefaultSettings();
   }
-
-  return [];
 }
 
-export async function verifyNoRegistryHive(hive: string): Promise<string[]> {
-  const skipReasons: string[] = [];
-
+export async function verifyNoRegistryHive(hive: string): Promise<void> {
   for (const variant of ['Policies\\Rancher Desktop', 'Rancher Desktop\\Profile']) {
     const registryPath = `${ hive }\\SOFTWARE\\${ variant }`;
 
@@ -161,39 +136,33 @@ export async function verifyNoRegistryHive(hive: string): Promise<string[]> {
       if (stdout.length === 0) {
         continue;
       }
-      if (hive === 'HKCU' && variant === 'Rancher Desktop\\Profile') {
-        try {
-          await childProcess.spawnFile('reg', ['delete', registryPath, '/f'], { stdio: ['ignore', 'pipe', 'pipe'] });
-        } catch (ex: any) {
-          skipReasons.push(`Need to remove registry hive "${ registryPath }" (tried, got error ${ ex }`);
-        }
-      } else {
-        skipReasons.push(`Need to remove registry hive "${ registryPath }"`);
-      }
-    } catch { }
+    } catch {
+      continue;
+    }
+    try {
+      await childProcess.spawnFile('reg', ['delete', registryPath, '/f'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (ex: any) {
+      throw new Error(`Need to remove registry hive "${ registryPath }" (tried, got error ${ ex }`);
+    }
   }
-
-  return skipReasons;
 }
 
-export async function verifyUserProfile(): Promise<string[]> {
-  const skipReasons = await clearUserProfile();
-
-  if (skipReasons.length > 0) {
-    return skipReasons;
-  }
+export async function verifyUserProfile(): Promise<void> {
+  await clearUserProfile();
   await createUserProfile({ containerEngine: { allowedImages: { enabled: true } } }, null);
-
-  return [];
 }
 
 export async function verifyNoSystemProfile(): Promise<string[]> {
   const platform = os.platform() as 'win32' | 'darwin' | 'linux';
 
   if (platform === 'win32') {
-    return await verifyNoRegistryHive('HKLM');
+    try {
+      await verifyNoRegistryHive('HKLM');
+    } catch (ex: any) {
+      return [ex.message];
+    }
   }
-  const profilePaths = getDeploymentPaths(platform, paths.deploymentProfileSystem);
+  const profilePaths = getDeploymentPaths(platform as 'linux'|'darwin', paths.deploymentProfileSystem);
   const existingProfiles = [];
 
   for (const profilePath of profilePaths) {

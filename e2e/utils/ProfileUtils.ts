@@ -84,22 +84,6 @@ export async function hasRegistrySubtree(hive: string): Promise<boolean> {
   return false;
 }
 
-export async function hasUserProfile(): Promise<boolean> {
-  const platform = os.platform() as 'win32' | 'darwin' | 'linux';
-
-  if (platform === 'win32') {
-    return await hasRegistrySubtree('HKCU');
-  }
-
-  for (const profilePath of getDeploymentPaths(platform, paths.deploymentProfileUser)) {
-    if (await fileExists(profilePath)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 export async function verifyRegistrySubtree(hive: string): Promise<string[]> {
   if (await hasRegistrySubtree(hive)) {
     return [];

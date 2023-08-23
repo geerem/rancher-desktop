@@ -8,7 +8,7 @@ import util from 'util';
 import { expect, Page } from '@playwright/test';
 
 import {
-  createDefaultSettings, createUserProfile, startRancherDesktop, retry, teardown, tool,
+  createDefaultSettings, createUserProfile, startRancherDesktop, retry, teardown,
 } from './TestUtils';
 import { NavPage } from '../pages/nav-page';
 
@@ -99,7 +99,7 @@ export async function verifyRegistrySubtree(hive: string): Promise<string[]> {
 export async function verifySettings(): Promise<void> {
   const fullPath = path.join(paths.config, 'settings.json');
 
-  if (!fileExists(fullPath)) {
+  if (!await fileExists(fullPath)) {
     createDefaultSettings();
   }
 }
@@ -231,7 +231,7 @@ export async function testForFirstRunWindow(testPath: string) {
   }
   expect(windowCountForMainPage).toEqual(2);
   console.log(`Shutting down now because this test is finished...`);
-  teardown(electronApp, testPath);
+  await teardown(electronApp, testPath);
 }
 
 // See comments above testForFirstRunWindow for an explanation of this function.
@@ -287,7 +287,7 @@ export async function testForNoFirstRunWindow(testPath: string) {
   }
   expect(windowCountForMainPage).toEqual(1);
   console.log(`Shutting down now because this test is finished...`);
-  teardown(electronApp, testPath);
+  await teardown(electronApp, testPath);
 }
 
 // See comments above testForFirstRunWindow for an explanation of this function.
@@ -327,7 +327,7 @@ export async function runWaitForLogfile(testPath: string, logPath: string) {
     }
     await util.promisify(setTimeout)(100);
   }
-  teardown(electronApp, testPath);
+  await teardown(electronApp, testPath);
 
   return windowCount;
 }

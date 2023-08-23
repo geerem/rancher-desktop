@@ -25,7 +25,7 @@ export async function clearUserProfile(): Promise<void> {
   const platform = os.platform() as 'win32' | 'darwin' | 'linux';
 
   if (platform === 'win32') {
-    return await verifyNoRegistryHive('HKCU');
+    return await verifyNoRegistrySubtree('HKCU');
   }
   const profilePaths = getDeploymentPaths(platform, paths.deploymentProfileUser);
 
@@ -66,7 +66,7 @@ function getDeploymentPaths(platform: 'linux'|'darwin', profileDir: string): str
   return baseNames.map(baseName => path.join(profileDir, baseName));
 }
 
-export async function hasRegistryHive(hive: string): Promise<boolean> {
+export async function hasRegistrySubtree(hive: string): Promise<boolean> {
   for (const profileType of ['defaults', 'locked']) {
     for (const variant of ['Policies\\Rancher Desktop', 'Rancher Desktop\\Profile']) {
       try {
@@ -88,7 +88,7 @@ export async function hasUserProfile(): Promise<boolean> {
   const platform = os.platform() as 'win32' | 'darwin' | 'linux';
 
   if (platform === 'win32') {
-    return await hasRegistryHive('HKCU');
+    return await hasRegistrySubtree('HKCU');
   }
 
   for (const profilePath of getDeploymentPaths(platform, paths.deploymentProfileUser)) {
@@ -102,8 +102,8 @@ export async function hasUserProfile(): Promise<boolean> {
   return false;
 }
 
-export async function verifyRegistryHive(hive: string): Promise<string[]> {
-  if (await hasRegistryHive(hive)) {
+export async function verifyRegistrySubtree(hive: string): Promise<string[]> {
+  if (await hasRegistrySubtree(hive)) {
     return [];
   } else if (hive === 'HKLM') {
     return [`Need to add registry hive "${ hive }\\SOFTWARE\\Policies\\Rancher Desktop\\<defaults or locked>"`];
@@ -124,7 +124,7 @@ export async function verifySettings(): Promise<void> {
   }
 }
 
-export async function verifyNoRegistryHive(hive: string): Promise<void> {
+export async function verifyNoRegistrySubtree(hive: string): Promise<void> {
   for (const variant of ['Policies\\Rancher Desktop', 'Rancher Desktop\\Profile']) {
     const registryPath = `${ hive }\\SOFTWARE\\${ variant }`;
 
@@ -157,7 +157,7 @@ export async function verifyNoSystemProfile(): Promise<string[]> {
 
   if (platform === 'win32') {
     try {
-      await verifyNoRegistryHive('HKLM');
+      await verifyNoRegistrySubtree('HKLM');
     } catch (ex: any) {
       return [ex.message];
     }
@@ -178,7 +178,7 @@ export async function verifySystemProfile(): Promise<string[]> {
   const platform = os.platform() as 'win32' | 'darwin' | 'linux';
 
   if (platform === 'win32') {
-    return await verifyRegistryHive('HKLM');
+    return await verifyRegistrySubtree('HKLM');
   }
   const profilePaths = getDeploymentPaths(platform, paths.deploymentProfileSystem);
 

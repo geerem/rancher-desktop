@@ -234,6 +234,8 @@ export async function testForFirstRunWindow(testPath: string) {
   teardown(electronApp, testPath);
 }
 
+// See comments above testForFirstRunWindow for an explanation of this function.
+
 export async function testForNoFirstRunWindow(testPath: string) {
   let page: Page|undefined;
   let navPage: NavPage;
@@ -287,6 +289,8 @@ export async function testForNoFirstRunWindow(testPath: string) {
   console.log(`Shutting down now because this test is finished...`);
   teardown(electronApp, testPath);
 }
+
+// See comments above testForFirstRunWindow for an explanation of this function.
 
 export async function runWaitForLogfile(testPath: string, logPath: string) {
   let windowCount = 0;

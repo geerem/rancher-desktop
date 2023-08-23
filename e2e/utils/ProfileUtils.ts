@@ -8,7 +8,7 @@ import util from 'util';
 import { expect, Page } from '@playwright/test';
 
 import {
-  createDefaultSettings, createUserProfile, startRancherDesktop, retry, tool,
+  createDefaultSettings, createUserProfile, startRancherDesktop, retry, teardown, tool,
 } from './TestUtils';
 import { NavPage } from '../pages/nav-page';
 
@@ -231,7 +231,7 @@ export async function testForFirstRunWindow(testPath: string) {
   }
   expect(windowCountForMainPage).toEqual(2);
   console.log(`Shutting down now because this test is finished...`);
-  await tool('rdctl', 'shutdown', '--verbose');
+  teardown(electronApp, testPath);
 }
 
 export async function testForNoFirstRunWindow(testPath: string) {
@@ -285,7 +285,7 @@ export async function testForNoFirstRunWindow(testPath: string) {
   }
   expect(windowCountForMainPage).toEqual(1);
   console.log(`Shutting down now because this test is finished...`);
-  await tool('rdctl', 'shutdown', '--verbose');
+  teardown(electronApp, testPath);
 }
 
 export async function runWaitForLogfile(testPath: string, logPath: string) {
@@ -323,6 +323,7 @@ export async function runWaitForLogfile(testPath: string, logPath: string) {
     }
     await util.promisify(setTimeout)(100);
   }
+  teardown(electronApp, testPath);
 
   return windowCount;
 }

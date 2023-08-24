@@ -327,7 +327,10 @@ export async function runWaitForLogfile(testPath: string, logPath: string) {
     }
     await util.promisify(setTimeout)(100);
   }
-  await teardown(electronApp, testPath);
+  try {
+    // Race condition: the app might have already shut down due to the fatal profile error.
+    await teardown(electronApp, testPath);
+  } catch { }
 
   return windowCount;
 }

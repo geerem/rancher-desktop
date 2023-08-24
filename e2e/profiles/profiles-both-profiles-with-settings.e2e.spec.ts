@@ -17,6 +17,7 @@ limitations under the License.
 import { test } from '@playwright/test';
 
 import {
+  clearUserProfile,
   testForNoFirstRunWindow,
   verifySettings,
   verifySystemProfile,
@@ -35,6 +36,9 @@ test.describe.serial('sys-profile with settings', () => {
       skipReason = `Profile requirements for this test: ${ skipReasons.join(', ') }`;
       console.log(`Skipping this test: ${ skipReason }`);
     }
+  });
+  test.afterAll(async() => {
+    await clearUserProfile();
   });
 
   test('should start with the main window', async() => {

@@ -18,6 +18,7 @@ import { test } from '@playwright/test';
 
 import {
   clearSettings,
+  clearUserProfile,
   testForNoFirstRunWindow,
   verifySystemProfile,
   verifyUserProfile,
@@ -36,7 +37,9 @@ test.describe.serial('sys-profile with settings', () => {
       console.log(`Skipping this test: ${ skipReason }`);
     }
   });
-
+  test.afterAll(async() => {
+    await clearUserProfile();
+  });
   test('should start with the main window', async() => {
     test.skip(skipReason !== '', skipReason);
     await testForNoFirstRunWindow(__filename);

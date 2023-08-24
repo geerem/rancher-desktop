@@ -66,12 +66,12 @@ function getDeploymentPaths(platform: 'linux'|'darwin', profileDir: string): str
   return baseNames.map(baseName => path.join(profileDir, baseName));
 }
 
-export async function hasRegistrySubtree(hive: string): Promise<boolean> {
+async function hasSystemRegistrySubtree(): Promise<boolean> {
   for (const profileType of ['defaults', 'locked']) {
     for (const variant of ['Policies\\Rancher Desktop', 'Rancher Desktop\\Profile']) {
       try {
         const { stdout } = await childProcess.spawnFile('reg',
-          ['query', `${ hive }\\SOFTWARE\\${ variant }\\${ profileType }`],
+          ['query', `HKLM\\SOFTWARE\\${ variant }\\${ profileType }`],
           { stdio: ['ignore', 'pipe', 'pipe'] });
 
         if (stdout.length > 0) {
@@ -84,15 +84,11 @@ export async function hasRegistrySubtree(hive: string): Promise<boolean> {
   return false;
 }
 
-export async function verifyRegistrySubtree(hive: string): Promise<string[]> {
-  if (await hasRegistrySubtree(hive)) {
+export async function verifySystemRegistrySubtree(): Promise<string[]> {
+  if (await hasSystemRegistrySubtree()) {
     return [];
-  } else if (hive === 'HKLM') {
-    return [`Need to add registry hive "${ hive }\\SOFTWARE\\Policies\\Rancher Desktop\\<defaults or locked>"`];
   } else {
-    await createUserProfile({ kubernetes: { enabled: false } }, null);
-
-    return [];
+    return [`Need to add registry subtree "HKLM\\SOFTWARE\\Policies\\Rancher Desktop\\<defaults or locked>"`];
   }
 }
 
@@ -158,7 +154,7 @@ export async function verifySystemProfile(): Promise<string[]> {
   const platform = os.platform() as 'win32' | 'darwin' | 'linux';
 
   if (platform === 'win32') {
-    return await verifyRegistrySubtree('HKLM');
+    return await verifySystemRegistrySubtree();
   }
   const profilePaths = getDeploymentPaths(platform, paths.deploymentProfileSystem);
 
